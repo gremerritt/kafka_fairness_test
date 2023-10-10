@@ -8,7 +8,7 @@ base_config = {
 }
 config = Rdkafka::Config.new(base_config)
 
-queued_min_message = 5
+queued_min_message = 1
 consumer_config = Rdkafka::Config.new(base_config.merge(
   {
     'group.id': 'fairness-test',
@@ -20,7 +20,7 @@ consumer_config = Rdkafka::Config.new(base_config.merge(
 TOPIC_PREFIX = 'test-topic-'
 TOPICS_COUNT = 2
 PARTITIONS_PER_TOPIC = 2
-EVENTS_PER_PARTITION = 10
+EVENTS_PER_PARTITION = 2
 
 topics = Array.new(TOPICS_COUNT) { |i| "#{TOPIC_PREFIX}#{i}" }
 
@@ -52,18 +52,18 @@ end
 
 begin
   producer = config.producer
+  event = -1
 
   topics.each do |topic|
     PARTITIONS_PER_TOPIC.times do |partition|
       toppar = "#{topic}/#{partition}"
-      puts "Producing messages to #{toppar}"
+      puts "Producing #{EVENTS_PER_PARTITION} messages to #{toppar}"
 
-      EVENTS_PER_PARTITION.times.with_object([]) do |i, handles|
-
+      EVENTS_PER_PARTITION.times.with_object([]) do |_, handles|
         handles << producer.produce(
           topic:,
           partition:,
-          payload: i.to_s
+          payload: (event += 1).to_s
         )
       end.each(&:wait)
     end
