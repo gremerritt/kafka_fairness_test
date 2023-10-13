@@ -20,7 +20,7 @@ consumer_config = Rdkafka::Config.new(base_config.merge(
 TOPIC_PREFIX = 'test-topic-'
 TOPICS_COUNT = 2
 PARTITIONS_PER_TOPIC = 2
-EVENTS_PER_PARTITION = 2
+EVENTS_PER_PARTITION = 1000
 
 topics = Array.new(TOPICS_COUNT) { |i| "#{TOPIC_PREFIX}#{i}" }
 
