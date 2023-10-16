@@ -8,19 +8,22 @@ base_config = {
 }
 config = Rdkafka::Config.new(base_config)
 
-queued_min_message = 1
+# queued_min_message = 1
 consumer_config = Rdkafka::Config.new(base_config.merge(
   {
     'group.id': 'fairness-test',
     'auto.offset.reset': 'earliest',
-    'queued.min.messages': queued_min_message
+    'message.max.bytes': 10_000,
+    'max.partition.fetch.bytes': 1_000
   }
 ))
 
 TOPIC_PREFIX = 'test-topic-'
 TOPICS_COUNT = 2
 PARTITIONS_PER_TOPIC = 2
-EVENTS_PER_PARTITION = 1000
+EVENTS_PER_PARTITION = 5_000
+KB = 'x' * 1000
+TOTAL_MESSAGES = TOPICS_COUNT * PARTITIONS_PER_TOPIC * EVENTS_PER_PARTITION
 
 topics = Array.new(TOPICS_COUNT) { |i| "#{TOPIC_PREFIX}#{i}" }
 
@@ -60,11 +63,8 @@ begin
       puts "Producing #{EVENTS_PER_PARTITION} messages to #{toppar}"
 
       EVENTS_PER_PARTITION.times.with_object([]) do |_, handles|
-        handles << producer.produce(
-          topic:,
-          partition:,
-          payload: (event += 1).to_s
-        )
+        payload = "#{event += 1} |#{KB * 8}"
+        handles << producer.produce(topic:, partition:, payload:)
       end.each(&:wait)
     end
   end
@@ -77,9 +77,23 @@ begin
   consumer = consumer_config.consumer
 
   consumer.subscribe("^#{TOPIC_PREFIX}*")
+  count = 0
+  summary = []
 
   consumer.each do |message|
-    puts "#{message.topic}/#{message.partition}: #{message.payload}"
+    if summary.last.nil? || summary.last.first != [message.topic, message.partition]
+      summary << [[message.topic, message.partition], 0]
+    end
+    summary.last[1] = summary.last.last + 1
+    count += 1
+
+    # puts "#{message.topic}/#{message.partition}: #{message.payload.split('|').first.strip} [#{message.payload.bytesize} bytes]"
+    consumer.store_offset(message)
+    break if count >= TOTAL_MESSAGES
+  end
+
+  summary.each do |block|
+    puts "#{block.first.first}/#{block.first[1]}: #{block.last} events"
   end
 ensure
   consumer.close
